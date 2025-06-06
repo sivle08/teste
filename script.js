@@ -1,10 +1,17 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const codeInput = document.getElementById('codeInput');
+    // const codeInput = document.getElementById('codeInput'); // No longer directly used to get value
     const runButton = document.getElementById('runButton');
     const outputArea = document.getElementById('outputArea');
 
+    // Ensure 'editor' is available (it's initialized in index.html before this script)
+    if (typeof editor === 'undefined') {
+        console.error('CodeMirror editor not found. Make sure it is initialized before script.js');
+        outputArea.textContent = 'Error: Code editor not initialized.';
+        return;
+    }
+
     runButton.addEventListener('click', () => {
-        const code = codeInput.value;
+        const code = editor.getValue(); // Get code from CodeMirror instance
         outputArea.textContent = 'Running code...'; // Provide immediate feedback
 
         fetch('/runcode', {
@@ -16,7 +23,6 @@ document.addEventListener('DOMContentLoaded', () => {
         })
         .then(response => {
             if (!response.ok) {
-                // If the server response is not ok, try to get error text
                 return response.text().then(text => {
                     throw new Error(`Server error: ${response.status} ${response.statusText}. ${text}`);
                 });
@@ -24,11 +30,19 @@ document.addEventListener('DOMContentLoaded', () => {
             return response.json();
         })
         .then(data => {
-            if (data.output) {
+            if (data.output && !data.error) { // Only output if no error
                 outputArea.textContent = data.output;
             } else if (data.error) {
-                outputArea.textContent = 'Error: ' + data.error;
-            } else {
+                // Display both stdout (if any) and stderr if stderr has content
+                let resultText = 'Error: ' + data.error;
+                if (data.output && data.output.trim() !== '') { // Add stdout if it's not empty
+                    resultText = data.output.trim() + "\n" + resultText;
+                }
+                outputArea.textContent = resultText;
+            } else if (data.output) { // Fallback for output if error field is missing but output is there
+                outputArea.textContent = data.output;
+            }
+            else {
                 outputArea.textContent = 'No output received.';
             }
         })
